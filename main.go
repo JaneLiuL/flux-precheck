@@ -52,10 +52,11 @@ func main()  {
 	}
 
 //	dry run and get the output
-	applyCtx, cancel := context.WithTimeout(ctx, timeout)
+	applyCtx, cancel := context.WithTimeout(context.Background(), time.Duration(time.Second*120))
 	defer cancel()
 
-	cmd := fmt.Sprintf("cd %s && kubectl apply -f %s --dry-run=server",outputManifestFile)
+	cmd := fmt.Sprintf("kubectl apply -f %s --dry-run=server", manifestsFile)
+	glog.Infof("command output as %s",cmd)
 	command := exec.CommandContext(applyCtx, "/bin/sh", "-c", cmd)
 
 	output, err := command.CombinedOutput()
@@ -64,11 +65,9 @@ func main()  {
 	}
 
 	outputresources := parseApplyOutput(output)
-	glog.Infof(
-		fmt.Sprintf("Kustomization applied in %s",
-			time.Now().Sub(start).String()),
-		"output", outputresources,
-	)
+	glog.Infof(fmt.Sprintf("dry run output %s", outputresources))
+	
+
 // read kustomization object name and namespace, read the status
 
 
