@@ -10,7 +10,8 @@ import (
 	"time"
 
 	flag "github.com/spf13/pflag"
-	"github.com/golang/glog"
+	//"github.com/golang/glog"
+	"github.com/gogf/gf/os/glog"
 	"sigs.k8s.io/kustomize/api/filesys"
 	kustomizev1 "github.com/fluxcd/kustomize-controller/api/v1beta1"
 	"k8s.io/client-go/kubernetes"
@@ -21,22 +22,25 @@ import (
 
 const outputManifestFile = "flux-precheck-output-manifest.yaml"
 
-func main()  {
 
-	var (
-		manifestFolder string
-		kustomizationName string
-		kustomizationNamespace string
-		kubeconfigPath string
-		clientset *kubernetes.Clientset
-		data []byte
-	)
+var (
+	manifestFolder string
+	kustomizationName string
+	kustomizationNamespace string
+	kubeconfigPath string
+	clientset *kubernetes.Clientset
+	data []byte
+)
+
+func  init()  {
 	flag.StringVar(&manifestFolder, "manifestFolder", "./", "The manifest folder")
 	flag.StringVar(&kustomizationName, "kustomizationName", "kustomization-name", "The kustomization object name")
 	flag.StringVar(&kustomizationNamespace, "kustomizationNamespace", "kustomization-namespace", "The kustomization object namespace")
 	flag.StringVar(&kubeconfigPath, "kubeconfigPath", "/root/.kube/config", "The kube config file path")
 	flag.Parse()
+}
 
+func main()  {
 //	compile and dry run apply and output the create and configured
 	fs := filesys.MakeFsOnDisk()
 	m, err := Compile(fs, manifestFolder)
