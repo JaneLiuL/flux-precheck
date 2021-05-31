@@ -18,11 +18,6 @@ import (
 	"k8s.io/client-go/dynamic"
 )
 
-type ResourceOutput struct {
-	action string
-	kind string
-	name string
-}
 
 const outputManifestFile = "flux-precheck-output-manifest.yaml"
 
@@ -36,10 +31,10 @@ func main()  {
 		clientset *kubernetes.Clientset
 		data []byte
 	)
-	flag.StringVar(&manifestFolder, "manifest folder", "./", "The manifest folder")
-	flag.StringVar(&kustomizationName, "kustomization object name", "kustomization-name", "The kustomization object name")
-	flag.StringVar(&kustomizationNamespace, "kustomization object namespace", "default", "The kustomization object namespace")
-	flag.StringVar(&kubeconfigPath, "Kube config file path", "/root/.kube/config", "The kube config file path")
+	flag.StringVar(&manifestFolder, "manifestFolder", "./", "The manifest folder")
+	flag.StringVar(&kustomizationName, "kustomizationName", "kustomization-name", "The kustomization object name")
+	flag.StringVar(&kustomizationNamespace, "kustomizationNamespace", "kustomization-namespace", "The kustomization object namespace")
+	flag.StringVar(&kubeconfigPath, "kubeconfigPath", "/root/.kube/config", "The kube config file path")
 	flag.Parse()
 
 //	compile and dry run apply and output the create and configured
@@ -65,7 +60,7 @@ func main()  {
 	defer cancel()
 
 	cmd := fmt.Sprintf("kubectl apply -f %s --dry-run=client", manifestsFile)
-	glog.Infof("command output as %s",cmd)
+
 	command := exec.CommandContext(applyCtx, "/bin/sh", "-c", cmd)
 
 	output, err := command.CombinedOutput()
@@ -76,19 +71,16 @@ func main()  {
 	outputresources := parseApplyOutput(output)
 	glog.Infof(fmt.Sprintf("dry run output %s", outputresources))
 	//output format: map[Warning::kubectl deployment.apps/my-dep:configured pod/test:created]
-	var resourceoutput []ResourceOutput
 
+	resourceoutput := make(map[string]string)
 	for obj, action := range outputresources {
 
 		if obj == "Warning:" {
 			glog.Info("Skip warning")
 			continue
 		}
-		resourceoutput = append(resourceoutput, ResourceOutput{
-			action: action,
-			kind: strings.Split(obj, "/")[0],
-			name: strings.Split(obj, "/")[1],
-		})
+		resourceoutput[fmt.Sprintf("%s/%s", strings.Split(obj, "/")[0],strings.Split(obj, "/")[1])] = action
+
 	}
 
 // read kustomization object name and namespace, read the status
@@ -121,8 +113,28 @@ func main()  {
 	}
 
 	client, err := dynamic.NewForConfig(config)
-	_ = CheckDeployByKustomization(client, kustomization)
+	lastTimekustomizationDeployOutput, err := CheckDeployByKustomization(client, kustomization)
 
 
+// As we already know what will be  created / unchanged / configured by dry-run
+// we need to compare with CheckDeployByKustomization output, to know what will be deleted
 
+
+	for _, v := range lastTimekustomizationDeployOutput {
+		ss := strings.Split(v, "/")
+
+
+		if _, found := resourceoutput[fmt.Sprintf("%s/%s", ss[0], ss[len(ss)-1])] ; found {
+			fmt.Println(v)
+		} else {
+		//	this resource will be delete
+			resourceoutput[fmt.Sprintf("%s/%s", ss[0],ss[len(ss)-1])] = "deleted"
+		}
+	}
+
+	glog.Info("============result==============")
+
+	for mapk, mapv := range resourceoutput {
+		glog.Infof("%s action is %s", mapk, mapv)
+	}
 }

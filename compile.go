@@ -4,17 +4,12 @@ import (
 	"context"
 	"fmt"
 	"time"
-
-	//"context"
-	//"fmt"
 	"sigs.k8s.io/kustomize/api/filesys"
 	"sigs.k8s.io/kustomize/api/resmap"
 	"sigs.k8s.io/kustomize/api/krusty"
 	kustypes "sigs.k8s.io/kustomize/api/types"
 	"sigs.k8s.io/kustomize/api/konfig"
 	"strings"
-	//"time"
-
 	kustomizev1 "github.com/fluxcd/kustomize-controller/api/v1beta1"
 
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -64,17 +59,17 @@ func parseApplyOutput(in []byte) map[string]string {
 
 
 
-func CheckDeployByKustomization(client dynamic.Interface, kustomization kustomizev1.Kustomization)  error{
-
+func CheckDeployByKustomization(client dynamic.Interface, kustomization kustomizev1.Kustomization)  ([]string, error){
+	var lastTimekustomizationDeployOutput []string
 	labelSelector := metav1.LabelSelector{MatchLabels: map[string]string{
 		fmt.Sprintf("%s/name", kustomizev1.GroupVersion.Group):      kustomization.GetName(),
 		fmt.Sprintf("%s/namespace", kustomizev1.GroupVersion.Group):  kustomization.GetNamespace(),
 	}}
-	glog.Infof("label is %s", labels.Set(labelSelector.MatchLabels).String())
+
 
 	// read status snapshot
 	if !kustomization.Spec.Prune || kustomization.Status.Snapshot == nil {
-		return nil
+		return lastTimekustomizationDeployOutput, nil
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(time.Second*120))
@@ -82,8 +77,6 @@ func CheckDeployByKustomization(client dynamic.Interface, kustomization kustomiz
 
 	for ns, gvks := range kustomization.Status.Snapshot.NamespacedKinds() {
 		for _, gvk := range gvks {
-			glog.Infof("namespace is %s, group is %s, version is %s, resource is %s", ns, gvk.Group, gvk.Version, gvk.Kind)
-			glog.Infof("label string is %s", labels.Set(labelSelector.MatchLabels).String())
 
 			gvr := schema.GroupVersionResource{
 				Group: gvk.Group,
@@ -96,8 +89,9 @@ func CheckDeployByKustomization(client dynamic.Interface, kustomization kustomiz
 			})
 			if err == nil {
 				for _, item := range resourceList.Items {
-					id := fmt.Sprintf("%s/%s/%s", item.GetKind(), item.GetNamespace(), item.GetName())
-					glog.Infof("resource is %s", id)
+					id := fmt.Sprintf("%s/%s/%s", fmt.Sprint(strings.ToLower(gvk.Kind),"s"), item.GetNamespace(), item.GetName())
+
+					lastTimekustomizationDeployOutput = append(lastTimekustomizationDeployOutput, id)
 				}
 			} else {
 				glog.Infof("client query failed for %s: %v", gvk.Kind, err)
@@ -119,8 +113,10 @@ func CheckDeployByKustomization(client dynamic.Interface, kustomization kustomiz
 			})
 			if err == nil {
 				for _, item := range resourceList.Items {
-					id := fmt.Sprintf("%s/%s", item.GetKind(), item.GetName())
-					glog.Infof("resource is %s", id)
+					//id := fmt.Sprintf("%s/%s", item.GetKind(), item.GetName())
+					id := fmt.Sprintf("%s/%s", fmt.Sprint(strings.ToLower(gvk.Kind),"s"), item.GetName())
+					//glog.Infof("resource is %s", id)
+					lastTimekustomizationDeployOutput = append(lastTimekustomizationDeployOutput, id)
 				}
 			} else {
 				glog.Infof("client query failed for %s: %v", gvk.Kind, err)
@@ -128,7 +124,5 @@ func CheckDeployByKustomization(client dynamic.Interface, kustomization kustomiz
 
 
 	}
-	return nil
-	// get the resource with label, if the resource name not in the channel, then output as delete
-
+	return lastTimekustomizationDeployOutput, nil
 }
