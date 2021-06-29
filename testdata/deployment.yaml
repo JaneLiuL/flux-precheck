@@ -7,6 +7,13 @@ metadata:
 apiVersion: v1
 kind: ConfigMap
 metadata:
+  name: first
+data:
+  value: test
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
 #   namespace: test
   name: test-configmap-first
 data:
